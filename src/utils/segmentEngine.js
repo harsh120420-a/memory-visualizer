@@ -52,3 +52,30 @@ export const deallocateSegment = (memoryMap, segmentId) => {
   }
   return mergedMap;
 };
+
+
+
+// Compaction: Moves all allocated segments to the top to create one big hole
+export const compactMemory = (memoryMap) => {
+  // 1. Separate allocated blocks from free blocks
+  const allocatedBlocks = memoryMap.filter(block => !block.isFree);
+  
+  // 2. Calculate the sum of all free space
+  const totalFreeSize = memoryMap
+    .filter(block => block.isFree)
+    .reduce((sum, block) => sum + block.size, 0);
+
+  // 3. Combine them: All allocated blocks first, followed by one giant free block
+  const compactedMap = [...allocatedBlocks];
+
+  if (totalFreeSize > 0) {
+    compactedMap.push({
+      id: `free-compacted-${Date.now()}`,
+      name: 'Free Space (Compacted)',
+      size: totalFreeSize,
+      isFree: true
+    });
+  }
+
+  return compactedMap;
+};

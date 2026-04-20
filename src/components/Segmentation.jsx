@@ -6,7 +6,9 @@ import { allocateFirstFit, deallocateSegment } from '../utils/segmentEngine';
 
 export default function Segmentation() {
   const TOTAL_MEMORY = 1000; // 1000 KB Total Simulated Physical Memory
-  const [memoryMap, setMemoryMap] = useState([]);
+  const [memoryMap, setMemoryMap] = useState([
+  { id: 'initial-free', name: 'Free', size: 1000, isFree: true }
+]);
   const [segName, setSegName] = useState('Process A');
   const [segSize, setSegSize] = useState(250);
   const [error, setError] = useState('');
