@@ -1,47 +1,74 @@
-// src/utils/segmentEngine.js
-
-// Allocates a segment using the First-Fit algorithm
-export const allocateFirstFit = (memoryMap, segment) => {
+// Helper to handle the actual splitting of memory blocks
+const performAllocation = (memoryMap, index, segment) => {
   let newMap = [...memoryMap];
-  
-  for (let i = 0; i < newMap.length; i++) {
-    let block = newMap[i];
-    
-    // Find the first free block that is large enough
-    if (block.isFree && block.size >= segment.size) {
-      let allocatedBlock = { 
-        id: segment.id, 
-        name: segment.name, 
-        size: segment.size, 
-        isFree: false 
-      };
-      
-      let remainingSize = block.size - segment.size;
-      newMap.splice(i, 1, allocatedBlock); // Replace free block with allocated segment
+  let block = newMap[index];
+  let remainingSize = Number(block.size) - Number(segment.size);
 
-      // If there is leftover space, create a smaller free block (splitting)
-      if (remainingSize > 0) {
-        newMap.splice(i + 1, 0, { 
-          id: `free-${Date.now()}`, 
-          name: 'Free', 
-          size: remainingSize, 
-          isFree: true 
-        });
-      }
-      return { success: true, newMap };
-    }
+  // Replace the free block with the allocated segment
+  newMap.splice(index, 1, { 
+    ...segment, 
+    isFree: false 
+  });
+
+  // If there is leftover space, create a new free block
+  if (remainingSize > 0) {
+    newMap.splice(index + 1, 0, { 
+      id: `free-${Date.now()}-${Math.random()}`, 
+      name: 'Free', 
+      size: remainingSize, 
+      isFree: true 
+    });
   }
-  // Returns false if no contiguous block is large enough (External Fragmentation)
-  return { success: false, newMap }; 
+  return { success: true, newMap };
 };
 
-// Deallocates a segment and merges adjacent free blocks
+export const allocateFirstFit = (memoryMap, segment) => {
+  for (let i = 0; i < memoryMap.length; i++) {
+    if (memoryMap[i].isFree && Number(memoryMap[i].size) >= Number(segment.size)) {
+      return performAllocation(memoryMap, i, segment);
+    }
+  }
+  return { success: false, newMap: memoryMap };
+};
+
+export const allocateBestFit = (memoryMap, segment) => {
+  let bestIndex = -1;
+  let minSize = Infinity;
+
+  for (let i = 0; i < memoryMap.length; i++) {
+    let block = memoryMap[i];
+    if (block.isFree && Number(block.size) >= Number(segment.size) && Number(block.size) < minSize) {
+      minSize = Number(block.size);
+      bestIndex = i;
+    }
+  }
+
+  if (bestIndex !== -1) return performAllocation(memoryMap, bestIndex, segment);
+  return { success: false, newMap: memoryMap };
+};
+
+export const allocateWorstFit = (memoryMap, segment) => {
+  let worstIndex = -1;
+  let maxSize = -1;
+
+  for (let i = 0; i < memoryMap.length; i++) {
+    let block = memoryMap[i];
+    if (block.isFree && Number(block.size) >= Number(segment.size) && Number(block.size) > maxSize) {
+      maxSize = Number(block.size);
+      worstIndex = i;
+    }
+  }
+
+  if (worstIndex !== -1) return performAllocation(memoryMap, worstIndex, segment);
+  return { success: false, newMap: memoryMap };
+};
+
 export const deallocateSegment = (memoryMap, segmentId) => {
   let newMap = memoryMap.map(block =>
-    block.id === segmentId? {...block, isFree: true, name: 'Free', id: `free-${Date.now()}` } : block
+    block.id === segmentId ? { ...block, isFree: true, name: 'Free', id: `free-${Date.now()}-${Math.random()}` } : block
   );
 
-  // Merge adjacent free blocks (Coalescing) to prevent artificial fragmentation
+  // Coalescing: Merge adjacent free blocks
   let mergedMap = [];
   for (let i = 0; i < newMap.length; i++) {
     if (newMap[i].isFree && mergedMap.length > 0 && mergedMap[mergedMap.length - 1].isFree) {
@@ -53,29 +80,20 @@ export const deallocateSegment = (memoryMap, segmentId) => {
   return mergedMap;
 };
 
-
-
-// Compaction: Moves all allocated segments to the top to create one big hole
 export const compactMemory = (memoryMap) => {
-  // 1. Separate allocated blocks from free blocks
-  const allocatedBlocks = memoryMap.filter(block => !block.isFree);
-  
-  // 2. Calculate the sum of all free space
-  const totalFreeSize = memoryMap
-    .filter(block => block.isFree)
-    .reduce((sum, block) => sum + block.size, 0);
+  const allocated = memoryMap.filter(b => !b.isFree);
+  const totalFree = memoryMap
+    .filter(b => b.isFree)
+    .reduce((sum, b) => sum + Number(b.size), 0);
 
-  // 3. Combine them: All allocated blocks first, followed by one giant free block
-  const compactedMap = [...allocatedBlocks];
-
-  if (totalFreeSize > 0) {
+  const compactedMap = [...allocated];
+  if (totalFree > 0) {
     compactedMap.push({
-      id: `free-compacted-${Date.now()}`,
+      id: `free-compact-${Date.now()}`,
       name: 'Free Space (Compacted)',
-      size: totalFreeSize,
+      size: totalFree,
       isFree: true
     });
   }
-
   return compactedMap;
 };
